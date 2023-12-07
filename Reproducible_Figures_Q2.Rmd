@@ -1,0 +1,183 @@
+---
+title: "Reproducible_Figures_Q2"
+output: html_document
+---
+
+## Question 2: Data Pipeline
+
+### Introduction
+To explore the Palmer Penguin dataset, I will first install and load the necessary packages. I will then clean the raw dataset.
+
+**Loading Packages and Data**
+```{r}
+#Installing packages
+install.packages(c("ggplot2", "palmerpenguins", "janitor", "dplyr", "ggpubr", "scales", "ragg", "magrittr", "svglite"))
+
+#Loading the necessary packages
+library(ggplot2)
+library(palmerpenguins)
+library(janitor)
+library(dplyr)
+library(ggpubr)
+library(scales)
+library(ragg)
+library(magrittr)
+library(svglite)
+
+source("Functions/cleaning.R")
+source("functions/plotting.r")
+
+
+#Looking at the data before saving it
+head(penguins_raw)
+write.csv(penguins_raw, "Data/penguins_raw.csv") 
+
+#Loading necessary data from saved source location
+penguins_raw <- read.csv("Data/penguins_raw.csv") 
+
+
+```
+
+**Cleaning the Data**
+
+```{r cleaning}
+
+names(penguins_raw) #looking at the variable names of the raw dataset to identify how the dataset needs to be cleaned
+
+
+#Creating and using a function to clean the raw data
+clean_function <- function(penguins_data) {
+  penguins_data %>%
+    select(-starts_with("Delta")) %>%
+    select(-Comments) %>%
+    clean_column_names() %>%
+    shorten_species() %>%
+    remove_empty_columns_rows()
+  }
+
+#calling function
+penguins_clean <- clean_function(penguins_raw)
+names(penguins_clean) #checking clean data
+
+#saving clean data
+write.csv(penguins_clean, "Data/penguins_clean.csv") 
+
+```
+
+**Exploratory Figure**
+```{r exploring the data}
+#exploring the dataset:
+head(penguins_clean)
+
+#I have found 2 interesting questions that could be explored:
+#1. could explore if body mass (g) changes according to sex across different species, i.e., which sex tends to be heavier?
+ggplot(penguins_clean, aes(x = sex, y = body_mass_g))+
+  geom_col(aes(colour = species, fill = species))
+
+#2. could explore if culmen length (mm) shares a relationship with culmen depth (mm) across different species, i.e., could beak measurements be indicative of the species and mode of nutrition/foraging?
+ggplot(penguins_clean, aes(x = culmen_length_mm, y = culmen_depth_mm))+
+  geom_point(aes(colour = species))
+
+
+```
+
+
+I have chosen the latter question. Next, I want to clean up this figure further:
+```{r}
+#Using a function to clean the data of omitted values:
+clean_na_function <- function(penguins_data) {
+  penguins_data %>%
+    remove_NA()
+}
+
+#calling function
+penguins_culmen_clean <- clean_na_function(penguins_clean)
+
+#subsetting the data based on the main variables I want to explore:
+culmen_sex_species_only <- subset_columns(penguins_culmen_clean, c("species", "culmen_length_mm", "culmen_depth_mm", "sex"))
+head(culmen_sex_species_only)
+
+#plotting this as a figure to better visualise the data and see which statistical test is best to use:
+culmen_scatterplot <- plot_culmen_figure(culmen_sex_species_only)
+culmen_scatterplot 
+
+#saving this first figure as a publication and report image (png and svg)
+save_culmen_plot_png(culmen_sex_species_only, "Figures/fig01_publication_15x15.png",
+                     size = 15, res = 600, scaling = 1.4)
+
+save_culmen_plot_png(culmen_sex_species_only, 
+                      "Figures/fig01_report_15x15.png", 
+                      size = 15, res = 600, scaling = 1)
+
+save_culmen_plot_svg(culmen_sex_species_only, 
+                      "Figures/fig01_vector_15x15.svg", 
+                      size = 15, scaling = 1)
+
+```
+
+
+
+
+### Hypothesis
+I have decided to compare culmen length and culmen depth of each penguin species as shown in the exploratory figure above. To do this, I will explore whether there is an association between culmen length and culmen depth for each of these species or not.
+
+Null hypothesis: The population correlation coefficient of culmen length and culmen depth for each of the Adelie, Chinstrap, and Gentoo species is 0.
+
+Alternative hypothesis: The population correlation coefficient of culmen length and culmen depth for each of the Adelie, Chinstrap, and Gentoo species is different from 0.
+
+
+### Statistical Methods
+I will be using the Pearson correlation coefficient as both variables being explored are continuous.
+
+For each penguin species, the Pearson correlation coefficient  and p-value will be calculated, where the significance level (alpha) is 0.05:
+```{r}
+#Adelie
+adelie_only <- filter_by_species(culmen_sex_species_only, "Adelie")
+cor(adelie_only$culmen_length_mm, adelie_only$culmen_depth_mm)
+cor.test(adelie_only$culmen_length_mm, adelie_only$culmen_depth_mm)$p.value
+
+
+#Chinstrap
+chinstrap_only <- filter_by_species(culmen_sex_species_only, "Chinstrap")
+cor(chinstrap_only$culmen_length_mm, chinstrap_only$culmen_depth_mm)
+cor.test(chinstrap_only$culmen_length_mm, chinstrap_only$culmen_depth_mm)$p.value
+
+
+#Gentoo
+gentoo_only <- filter_by_species(culmen_sex_species_only, "Gentoo")
+cor(gentoo_only$culmen_length_mm, gentoo_only$culmen_depth_mm)
+cor.test(gentoo_only$culmen_length_mm, gentoo_only$culmen_depth_mm)$p.value
+
+```
+
+
+### Results and Discussion
+I have found that Adelie penguins show a weak positive correlation between culmen length and depth, where R = 0.39. In contrast, Chinstrap and Gentoo penguins both show a much stronger positive correlation between culmen length and depth, where this is represented by R = 0.65 for both species. Yet, for all species, these sample correlations are statistically significant as the results for R are significantly different from 0, where p < 0.05 for each. This can be seen in the results graph below:
+```{r}
+#plotting the results figure
+culmen_results_scatterplot <- plot_culmen_results_figure(culmen_sex_species_only)
+culmen_results_scatterplot 
+
+
+#saving this results figure as a publication and report image (png and svg)
+save_culmen_results_plot_png(culmen_sex_species_only, "Figures/fig02_publication_15x15.png",
+                     size = 15, res = 600, scaling = 0.9)
+
+save_culmen_results_plot_png(culmen_sex_species_only, 
+                      "Figures/fig02_report_15x15.png", 
+                      size = 15, res = 600, scaling = 0.9)
+
+save_culmen_results_plot_svg(culmen_sex_species_only, 
+                      "Figures/fig02_vector_15x15.svg", 
+                      size = 15, scaling = 1)
+
+```
+
+Therefore, there is evidence that there is an association between culmen length and culmen depth for the 3 penguin species, where we can reject the null hypothesis. However, this association is only moderate for the Adelie species, where the relationship between these beak measurements is weaker relative to the Chinstrap and Gentoo species. This might indicate in Adelie penguins that, whilst increases in culmen length can correlate with increases in culmen depth, these beak measurements are not wholly dependent on each other. However, for Chinstrap and Gentoo species, increases in culmen length do tend to be strongly associated with increases in culmen depth. Yet, it must also be noted that correlation does not signify causation and so this must be considered with further analyses to establish causality for these beak measurements.
+
+This correlation analysis could have biological significance, however, where the beak measurements for Adelie penguins might be more variable relative to the 2 other penguin species. This could indicate that Adelie penguins act more as generalists in their mode of foraging/nutrition and so their beak measurements are less constrained than the other 2 penguin species as seen on the figure above. This could be supported by the Adelie penguins inhabiting all three islands in the dataset whilst the other 2 penguin species are not. However, the differences in associations between the beak measurements across the penguin species could also be due to other factors such as sex. For example, culmen depth might associate more strongly with sex in Adelie penguins whilst both culmen length and depth change in accordance with sex in Chinstrap and Gentoo penguins. Thus, it would be interesting to explore these other associations further. 
+
+
+### Conclusion
+Overall, the Palmer Penguin dataset can be used to explore associations between culmen length and culmen depth across Adelie, Chinstrap, and Gentoo penguins. Adelie penguins show a moderate positive association between culmen length and depth whilst Chinstrap and Gentoo penguins show a strong positive association between these beak measurements. This could be due to Adelie penguins being more generalist in their mode of nutrition relative to the other penguin species explored or impacted by other factors such as island and sex. Thus, the relationship between culmen length and depth could be analysed further in light of these factors in future analyses. This would be interesting to explore the environmental and biological factors driving the differences seen in common traits across different penguin species.
+
